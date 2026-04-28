@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>דוח חשיפה ברשתות</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f0f4fb;
+    --surface:   #ffffff;
+    --surface2:  #e8edf8;
+    --border:    #c8d4e8;
+    --text:      #0D1B4B;
+    --hint:      #4a6080;
+    --text-dim:  #8a9ab8;
+    --accent:    #1a3a8f;
+    --accent-soft: rgba(26,58,143,0.09);
+    --accent-glow: rgba(26,58,143,0.18);
+    --radius:    14px;
+    --radius-sm: 9px;
+
+    --ig-1: #f58529;
+    --ig-2: #dd2a7b;
+    --ig-3: #8134af;
+    --fb:    #1877f2;
+    --yt:    #ff0000;
+    --tt-1:  #25f4ee;
+    --tt-2:  #fe2c55;
+    --li:    #0a66c2;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  html, body {
+    font-family: 'Heebo', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    min-height: 100vh;
+  }
+
+  body {
+    padding: 14px 14px 40px;
+  }
+
+  /* ───── Loading ───── */
+  .loading {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    z-index: 100;
+  }
+  .loading.hidden { display: none; }
+  .spinner {
+    width: 46px; height: 46px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    font-size: 15px;
+    color: var(--hint);
+    font-weight: 500;
+  }
+
+  /* ───── Header ───── */
+  .header {
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .header .subtitle {
+    font-size: 13px;
+    color: var(--hint);
+    font-weight: 500;
+  }
+
+  /* ───── Tabs ───── */
+  .tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 2px 12px;
+    margin-bottom: 8px;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 14px;
+    background: var(--text);
+    color: #fff;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+    opacity: 0.55;
+  }
+  .tab.active {
+    opacity: 1;
+    border-color: var(--accent-glow);
+    box-shadow: 0 4px 14px rgba(13,27,75,0.18);
+  }
+  .tab .icon {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .tab[data-platform="instagram"] .icon {
+    background: linear-gradient(135deg, var(--ig-1), var(--ig-2), var(--ig-3));
+  }
+  .tab[data-platform="facebook"] .icon { background: var(--fb); }
+  .tab[data-platform="youtube"] .icon { background: var(--yt); }
+  .tab[data-platform="tiktok"] .icon { background: #000; position: relative; }
+  .tab[data-platform="linkedin"] .icon { background: var(--li); }
+
+  .tab .icon svg { width: 11px; height: 11px; fill: #fff; }
+
+  /* ───── Card ───── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 8px rgba(13,27,75,0.04);
+  }
+
+  /* ───── Profile bar ───── */
+  .profile-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .profile-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .profile-icon.instagram { background: linear-gradient(135deg, var(--ig-1), var(--ig-2), var(--ig-3)); }
+  .profile-icon.facebook { background: var(--fb); }
+  .profile-icon.youtube { background: var(--yt); }
+  .profile-icon.tiktok { background: #000; }
+  .profile-icon.linkedin { background: var(--li); }
+  .profile-icon svg { width: 22px; height: 22px; fill: #fff; }
+
+  .profile-info { display: flex; flex-direction: column; }
+  .profile-name {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .profile-handle {
+    font-size: 13px;
+    color: var(--hint);
+    font-weight: 500;
+  }
+
+  /* ───── Metrics grid ───── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .metric-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .metric-tile.highlighted {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+  .metric-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--hint);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .metric-label svg {
+    width: 13px;
+    height: 13px;
+    fill: var(--hint);
+  }
+  .metric-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  /* ───── Chart ───── */
+  .chart-card {
+    margin-top: 14px;
+  }
+  .chart-title {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 14px;
+  }
+  .chart-wrap {
+    position: relative;
+    height: 240px;
+    width: 100%;
+  }
+
+  /* ───── Empty state ───── */
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--hint);
+  }
+  .empty-state .empty-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .empty-state .empty-icon svg {
+    width: 28px; height: 28px;
+    fill: var(--text-dim);
+  }
+  .empty-state .empty-text {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .empty-state .empty-sub {
+    font-size: 13px;
+    color: var(--hint);
+  }
+
+  /* ───── Error state ───── */
+  .error-state {
+    padding: 40px 20px;
+    text-align: center;
+  }
+  .error-state .err-text {
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .retry-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 10px 22px;
+    font-family: 'Heebo', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  @media (max-width: 360px) {
+    .metric-value { font-size: 22px; }
+    .header h1 { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">טוען נתונים...</div>
+</div>
+
+<!-- Main -->
+<div id="main" style="display:none;">
+  <div class="header">
+    <h1>דוח חשיפה ברשתות</h1>
+    <div class="subtitle" id="profileSubtitle">—</div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div id="content"></div>
+</div>
+
+<!-- Error -->
+<div id="errorScreen" style="display:none;">
+  <div class="card">
+    <div class="error-state">
+      <div class="err-text" id="errText">אירעה שגיאה בטעינת הנתונים</div>
+      <button class="retry-btn" onclick="location.reload()">נסה שוב</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // ───── Telegram init
+  var tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  // ───── URL params
+  var params = new URLSearchParams(window.location.search);
+  var pollingUrl = params.get('pollingUrl') || '';
+  var sessionId = params.get('sessionId') || '';
+
+  // ───── Hebrew labels (matches the source data structure)
+  var PLATFORM_LABELS = {
+    instagram: 'Instagram',
+    facebook: 'Facebook',
+    youtube: 'YouTube',
+    tiktok: 'TikTok',
+    linkedin: 'LinkedIn'
+  };
+
+  var PLATFORM_ORDER = ['instagram', 'facebook', 'youtube', 'tiktok', 'linkedin'];
+
+  // Hebrew metric labels
+  var METRIC_LABELS_HE = {
+    followers:    'עוקבים',
+    subscribers:  'מנויים',
+    reach:        'חשיפה',
+    views:        'צפיות',
+    impressions:  'צפיות',
+    profileViews: 'חשבונות שעסקו',
+    likes:        'לייקים',
+    comments:     'תגובות',
+    shares:       'שיתופים',
+    saves:        'שמירות',
+    video_count:  'מספר סרטונים',
+    following:    'נעקבים'
+  };
+
+  // Per-platform — which metrics to display in tiles, and which is "highlighted"
+  // (the highlighted one is the one in the screenshot — boxed in purple)
+  var PLATFORM_METRICS = {
+    instagram: {
+      tiles: [
+        { key: 'followers',    label: 'עוקבים' },
+        { key: 'reach',        label: 'חשיפה' },
+        { key: 'views',        label: 'צפיות', highlight: true },
+        { key: 'profileViews', label: 'חשבונות שעסקו' },
+        { key: 'likes',        label: 'לייקים' }
+      ]
+    },
+    facebook: {
+      tiles: [
+        { key: 'followers',    label: 'עוקבים' },
+        { key: 'reach',        label: 'חשיפה' },
+        { key: 'impressions',  label: 'צפיות' },
+        { key: 'likes',        label: 'לייקים' }
+      ]
+    },
+    youtube: {
+      tiles: [
+        { key: 'followers',    label: 'מנויים' },
+        { key: 'impressions',  label: 'צפיות' },
+        { key: 'likes',        label: 'לייקים' },
+        { key: 'comments',     label: 'תגובות' },
+        { key: 'shares',       label: 'שיתופים' }
+      ]
+    },
+    tiktok: {
+      tiles: [
+        { key: 'followers',    label: 'עוקבים' },
+        { key: 'impressions',  label: 'צפיות' },
+        { key: 'likes',        label: 'לייקים' },
+        { key: 'comments',     label: 'תגובות' },
+        { key: 'shares',       label: 'שיתופים' },
+        { key: 'video_count',  label: 'סרטונים' }
+      ]
+    },
+    linkedin: {
+      tiles: [
+        { key: 'followers',    label: 'עוקבים' },
+        { key: 'impressions',  label: 'חשיפה' },
+        { key: 'likes',        label: 'לייקים' }
+      ]
+    }
+  };
+
+  // SVG icons for platforms (small, used in tabs and profile bar)
+  var ICONS = {
+    instagram: '<svg viewBox="0 0 24 24"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41-.56-.22-.96-.48-1.38-.9-.42-.42-.68-.82-.9-1.38-.16-.42-.36-1.06-.41-2.23C2.17 15.58 2.16 15.2 2.16 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.42 2.17 8.8 2.16 12 2.16M12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63c-.79.31-1.46.72-2.12 1.39C1.35 2.68.94 3.35.63 4.14.33 4.9.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.27.26 2.15.56 2.91.31.79.72 1.46 1.39 2.12.66.66 1.33 1.08 2.12 1.39.76.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.27-.06 2.15-.26 2.91-.56.79-.31 1.46-.72 2.12-1.39.66-.66 1.08-1.33 1.39-2.12.3-.76.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91-.31-.79-.72-1.46-1.39-2.12-.66-.66-1.33-1.08-2.12-1.39-.76-.3-1.64-.5-2.91-.56C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zm0 10.16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg>',
+    facebook: '<svg viewBox="0 0 24 24"><path d="M24 12c0-6.6-5.4-12-12-12S0 5.4 0 12c0 6 4.4 11 10.1 11.9V15.5H7.1V12h3v-2.6c0-3 1.8-4.6 4.5-4.6 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.3l-.5 3.5h-2.8v8.4C19.6 23 24 18 24 12z"/></svg>',
+    youtube: '<svg viewBox="0 0 24 24"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 00.5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 002.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 002.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z"/></svg>',
+    tiktok: '<svg viewBox="0 0 24 24"><path d="M19.6 6.3c-1.4 0-2.7-.5-3.7-1.4-1-.9-1.6-2.2-1.7-3.6V1h-3.4v13.5c0 1.6-1.3 2.8-2.9 2.8s-2.9-1.3-2.9-2.8 1.3-2.9 2.9-2.9c.3 0 .6 0 .9.1V8.3c-.3 0-.6-.1-.9-.1-3.4 0-6.2 2.8-6.2 6.3s2.8 6.3 6.2 6.3 6.2-2.8 6.2-6.3V8.3c1.3.9 2.8 1.4 4.4 1.4V6.3z"/></svg>',
+    linkedin: '<svg viewBox="0 0 24 24"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.95v5.66H9.36V9h3.4v1.56h.05c.47-.9 1.63-1.85 3.36-1.85 3.6 0 4.26 2.37 4.26 5.45v6.29zM5.34 7.43a2.06 2.06 0 11-.01-4.12 2.06 2.06 0 01.01 4.12zm1.78 13.02H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z"/></svg>'
+  };
+
+  // Format number with comma separators
+  function fmtNum(n) {
+    if (n === null || n === undefined) return '0';
+    return Number(n).toLocaleString('en-US');
+  }
+
+  // ───── State
+  var allData = null;
+  var activePlatform = null;
+  var chartInstance = null;
+  var profileName = '';
+
+  // ───── Polling
+  var pollCount = 0;
+  var MAX_POLLS = 60; // 60 * 3s = 3 minutes
+
+  function startPolling() {
+    if (!pollingUrl) {
+      showError('חסר pollingUrl');
+      return;
+    }
+    pollOnce();
+  }
+
+  function pollOnce() {
+    pollCount++;
+    if (pollCount > MAX_POLLS) {
+      showError('זמן ההמתנה פג');
+      return;
+    }
+    var url = pollingUrl
+      + (pollingUrl.indexOf('?') >= 0 ? '&' : '?')
+      + 'sessionId=' + encodeURIComponent(sessionId);
+
+    fetch(url, { method: 'GET', cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (resp && resp.ready) {
+          allData = resp.data || resp;
+          profileName = resp.profile || '';
+          render();
+        } else {
+          setTimeout(pollOnce, 3000);
+        }
+      })
+      .catch(function() {
+        setTimeout(pollOnce, 3000);
+      });
+  }
+
+  function showError(msg) {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('main').style.display = 'none';
+    document.getElementById('errorScreen').style.display = 'block';
+    document.getElementById('errText').textContent = msg;
+  }
+
+  // ───── Rendering
+  function render() {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('main').style.display = 'block';
+
+    // subtitle = profile name
+    document.getElementById('profileSubtitle').textContent = profileName ? '@' + profileName : '';
+
+    renderTabs();
+
+    // pick default tab — first platform that has data
+    if (!activePlatform) {
+      for (var i = 0; i < PLATFORM_ORDER.length; i++) {
+        var p = PLATFORM_ORDER[i];
+        if (allData[p] && hasRealData(allData[p])) {
+          activePlatform = p;
+          break;
+        }
+      }
+      if (!activePlatform) activePlatform = PLATFORM_ORDER[0];
+    }
+
+    setActiveTab(activePlatform);
+    renderContent();
+  }
+
+  function hasRealData(platformData) {
+    if (!platformData) return false;
+    if (platformData.success === false) return false;
+    return true;
+  }
+
+  function renderTabs() {
+    var tabs = document.getElementById('tabs');
+    tabs.innerHTML = '';
+    PLATFORM_ORDER.forEach(function(p) {
+      var btn = document.createElement('button');
+      btn.className = 'tab';
+      btn.setAttribute('data-platform', p);
+      btn.innerHTML = '<span class="icon">' + ICONS[p] + '</span> ' + PLATFORM_LABELS[p];
+      btn.addEventListener('click', function() {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+          try { window.Telegram.WebApp.HapticFeedback.selectionChanged(); } catch (e) {}
+        }
+        activePlatform = p;
+        setActiveTab(p);
+        renderContent();
+      });
+      tabs.appendChild(btn);
+    });
+  }
+
+  function setActiveTab(platform) {
+    document.querySelectorAll('.tab').forEach(function(t) {
+      t.classList.toggle('active', t.getAttribute('data-platform') === platform);
+    });
+  }
+
+  function renderContent() {
+    var content = document.getElementById('content');
+    content.innerHTML = '';
+
+    // destroy previous chart
+    if (chartInstance) {
+      try { chartInstance.destroy(); } catch (e) {}
+      chartInstance = null;
+    }
+
+    var data = allData[activePlatform];
+
+    // ── No data for this platform
+    if (!data || !hasRealData(data)) {
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML =
+        '<div class="empty-state">' +
+          '<div class="empty-icon">' +
+            '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>' +
+          '</div>' +
+          '<div class="empty-text">הפלטפורמה לא אישרה משיכת נתונים</div>' +
+          '<div class="empty-sub">' + PLATFORM_LABELS[activePlatform] + '</div>' +
+        '</div>';
+      content.appendChild(card);
+      return;
+    }
+
+    // ── Profile bar + metrics
+    var card = document.createElement('div');
+    card.className = 'card';
+
+    var bar = document.createElement('div');
+    bar.className = 'profile-bar';
+    bar.innerHTML =
+      '<div class="profile-icon ' + activePlatform + '">' + ICONS[activePlatform] + '</div>' +
+      '<div class="profile-info">' +
+        '<div class="profile-name">' + PLATFORM_LABELS[activePlatform] + '</div>' +
+        '<div class="profile-handle">' + (profileName ? '@' + profileName : '—') + '</div>' +
+      '</div>';
+    card.appendChild(bar);
+
+    var grid = document.createElement('div');
+    grid.className = 'metrics-grid';
+
+    var spec = PLATFORM_METRICS[activePlatform];
+    if (spec && spec.tiles) {
+      spec.tiles.forEach(function(t) {
+        var val = data[t.key];
+        if (val === undefined || val === null) val = 0;
+        var tile = document.createElement('div');
+        tile.className = 'metric-tile' + (t.highlight ? ' highlighted' : '');
+        tile.innerHTML =
+          '<div class="metric-label">' + t.label + '</div>' +
+          '<div class="metric-value">' + fmtNum(val) + '</div>';
+        grid.appendChild(tile);
+      });
+    }
+    card.appendChild(grid);
+    content.appendChild(card);
+
+    // ── Chart (Daily Reach)
+    if (data.reach_timeseries && data.reach_timeseries.length) {
+      var chartCard = document.createElement('div');
+      chartCard.className = 'card chart-card';
+      chartCard.innerHTML =
+        '<div class="chart-title">חשיפה יומית — 30 ימים אחרונים</div>' +
+        '<div class="chart-wrap"><canvas id="reachChart"></canvas></div>';
+      content.appendChild(chartCard);
+
+      drawChart(data.reach_timeseries);
+    }
+  }
+
+  function drawChart(timeseries) {
+    var canvas = document.getElementById('reachChart');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    var labels = timeseries.map(function(d) {
+      // dd/MM
+      var parts = d.date.split('-');
+      return parts[2] + '/' + parts[1];
+    });
+    var values = timeseries.map(function(d) { return d.value; });
+
+    // Gradient fill
+    var grad = ctx.createLinearGradient(0, 0, 0, 240);
+    grad.addColorStop(0, 'rgba(26, 58, 143, 0.25)');
+    grad.addColorStop(1, 'rgba(26, 58, 143, 0.00)');
+
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'חשיפה יומית',
+          data: values,
+          borderColor: '#1a3a8f',
+          backgroundColor: grad,
+          borderWidth: 2.5,
+          tension: 0.35,
+          fill: true,
+          pointRadius: 2.5,
+          pointBackgroundColor: '#1a3a8f',
+          pointBorderWidth: 0,
+          pointHoverRadius: 5
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 6, bottom: 0, left: 0, right: 0 } },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              font: { family: 'Heebo', size: 12, weight: '600' },
+              color: '#0D1B4B',
+              boxWidth: 10,
+              boxHeight: 10,
+              usePointStyle: true,
+              pointStyle: 'circle'
+            }
+          },
+          tooltip: {
+            backgroundColor: '#0D1B4B',
+            titleFont: { family: 'Heebo', size: 12, weight: '700' },
+            bodyFont: { family: 'Heebo', size: 12 },
+            padding: 10,
+            displayColors: false
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { family: 'Heebo', size: 10 },
+              color: '#8a9ab8',
+              maxRotation: 45,
+              minRotation: 45,
+              autoSkip: true,
+              maxTicksLimit: 10
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: '#c8d4e8', drawTicks: false, lineWidth: 1, borderDash: [4, 4] },
+            border: { display: false },
+            ticks: {
+              font: { family: 'Heebo', size: 10 },
+              color: '#8a9ab8',
+              padding: 6
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ───── Boot
+  startPolling();
+})();
+</script>
+</body>
+</html>
