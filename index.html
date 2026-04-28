@@ -27,8 +27,6 @@
     --ig-3: #8134af;
     --fb:    #1877f2;
     --yt:    #ff0000;
-    --tt-1:  #25f4ee;
-    --tt-2:  #fe2c55;
     --li:    #0a66c2;
   }
 
@@ -347,9 +345,9 @@
   // ───── URL params
   var params = new URLSearchParams(window.location.search);
   var pollingUrl = params.get('pollingUrl') || '';
-  var sessionId = params.get('sessionId') || '';
+  var profile = params.get('profile') || '';
 
-  // ───── Hebrew labels (matches the source data structure)
+  // ───── Constants
   var PLATFORM_LABELS = {
     instagram: 'Instagram',
     facebook: 'Facebook',
@@ -360,24 +358,8 @@
 
   var PLATFORM_ORDER = ['instagram', 'facebook', 'youtube', 'tiktok', 'linkedin'];
 
-  // Hebrew metric labels
-  var METRIC_LABELS_HE = {
-    followers:    'עוקבים',
-    subscribers:  'מנויים',
-    reach:        'חשיפה',
-    views:        'צפיות',
-    impressions:  'צפיות',
-    profileViews: 'חשבונות שעסקו',
-    likes:        'לייקים',
-    comments:     'תגובות',
-    shares:       'שיתופים',
-    saves:        'שמירות',
-    video_count:  'מספר סרטונים',
-    following:    'נעקבים'
-  };
-
   // Per-platform — which metrics to display in tiles, and which is "highlighted"
-  // (the highlighted one is the one in the screenshot — boxed in purple)
+  // (the highlighted one matches the screenshot — boxed in purple)
   var PLATFORM_METRICS = {
     instagram: {
       tiles: [
@@ -424,7 +406,7 @@
     }
   };
 
-  // SVG icons for platforms (small, used in tabs and profile bar)
+  // Platform SVG icons
   var ICONS = {
     instagram: '<svg viewBox="0 0 24 24"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41-.56-.22-.96-.48-1.38-.9-.42-.42-.68-.82-.9-1.38-.16-.42-.36-1.06-.41-2.23C2.17 15.58 2.16 15.2 2.16 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.42 2.17 8.8 2.16 12 2.16M12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63c-.79.31-1.46.72-2.12 1.39C1.35 2.68.94 3.35.63 4.14.33 4.9.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.27.26 2.15.56 2.91.31.79.72 1.46 1.39 2.12.66.66 1.33 1.08 2.12 1.39.76.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.27-.06 2.15-.26 2.91-.56.79-.31 1.46-.72 2.12-1.39.66-.66 1.08-1.33 1.39-2.12.3-.76.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91-.31-.79-.72-1.46-1.39-2.12-.66-.66-1.33-1.08-2.12-1.39-.76-.3-1.64-.5-2.91-.56C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 100 12.32 6.16 6.16 0 000-12.32zm0 10.16a4 4 0 110-8 4 4 0 010 8zm6.41-11.85a1.44 1.44 0 100 2.88 1.44 1.44 0 000-2.88z"/></svg>',
     facebook: '<svg viewBox="0 0 24 24"><path d="M24 12c0-6.6-5.4-12-12-12S0 5.4 0 12c0 6 4.4 11 10.1 11.9V15.5H7.1V12h3v-2.6c0-3 1.8-4.6 4.5-4.6 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9V12h3.3l-.5 3.5h-2.8v8.4C19.6 23 24 18 24 12z"/></svg>',
@@ -443,15 +425,18 @@
   var allData = null;
   var activePlatform = null;
   var chartInstance = null;
-  var profileName = '';
 
   // ───── Polling
   var pollCount = 0;
-  var MAX_POLLS = 60; // 60 * 3s = 3 minutes
+  var MAX_POLLS = 20; // 20 * 3s = 60s timeout
 
   function startPolling() {
     if (!pollingUrl) {
       showError('חסר pollingUrl');
+      return;
+    }
+    if (!profile) {
+      showError('חסר שם לקוח');
       return;
     }
     pollOnce();
@@ -465,14 +450,13 @@
     }
     var url = pollingUrl
       + (pollingUrl.indexOf('?') >= 0 ? '&' : '?')
-      + 'sessionId=' + encodeURIComponent(sessionId);
+      + 'profile=' + encodeURIComponent(profile);
 
     fetch(url, { method: 'GET', cache: 'no-store' })
       .then(function(r) { return r.json(); })
       .then(function(resp) {
-        if (resp && resp.ready) {
-          allData = resp.data || resp;
-          profileName = resp.profile || '';
+        if (resp && resp.ready && resp.data) {
+          allData = resp.data;
           render();
         } else {
           setTimeout(pollOnce, 3000);
@@ -495,8 +479,7 @@
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('main').style.display = 'block';
 
-    // subtitle = profile name
-    document.getElementById('profileSubtitle').textContent = profileName ? '@' + profileName : '';
+    document.getElementById('profileSubtitle').textContent = profile ? '@' + profile : '';
 
     renderTabs();
 
@@ -562,9 +545,9 @@
 
     // ── No data for this platform
     if (!data || !hasRealData(data)) {
-      var card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML =
+      var emptyCard = document.createElement('div');
+      emptyCard.className = 'card';
+      emptyCard.innerHTML =
         '<div class="empty-state">' +
           '<div class="empty-icon">' +
             '<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>' +
@@ -572,7 +555,7 @@
           '<div class="empty-text">הפלטפורמה לא אישרה משיכת נתונים</div>' +
           '<div class="empty-sub">' + PLATFORM_LABELS[activePlatform] + '</div>' +
         '</div>';
-      content.appendChild(card);
+      content.appendChild(emptyCard);
       return;
     }
 
@@ -586,7 +569,7 @@
       '<div class="profile-icon ' + activePlatform + '">' + ICONS[activePlatform] + '</div>' +
       '<div class="profile-info">' +
         '<div class="profile-name">' + PLATFORM_LABELS[activePlatform] + '</div>' +
-        '<div class="profile-handle">' + (profileName ? '@' + profileName : '—') + '</div>' +
+        '<div class="profile-handle">' + (profile ? '@' + profile : '—') + '</div>' +
       '</div>';
     card.appendChild(bar);
 
@@ -628,13 +611,11 @@
     var ctx = canvas.getContext('2d');
 
     var labels = timeseries.map(function(d) {
-      // dd/MM
       var parts = d.date.split('-');
       return parts[2] + '/' + parts[1];
     });
     var values = timeseries.map(function(d) { return d.value; });
 
-    // Gradient fill
     var grad = ctx.createLinearGradient(0, 0, 0, 240);
     grad.addColorStop(0, 'rgba(26, 58, 143, 0.25)');
     grad.addColorStop(1, 'rgba(26, 58, 143, 0.00)');
